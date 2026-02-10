@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Analysis - Durnov Polybot V2</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Market Analysis</h1>
+            <p class="subtitle">Detailed market information and trading signals</p>
+            <a href="/" class="back-link">← Back to Markets</a>
+        </header>
+
+        <main>
+            <div id="loading" class="loading">
+                <p>Loading market data...</p>
+            </div>
+
+            <div id="market-content" style="display: none;">
+                <!-- Market tabs -->
+                <div class="market-tabs">
+                    <button class="tab-btn active" onclick="showMarketDetailTab('analysis')">Market Analysis</button>
+                    <button class="tab-btn" onclick="showMarketDetailTab('positions')">Open Positions</button>
+                </div>
+
+                <!-- Market Analysis Tab -->
+                <div id="analysis-tab" class="tab-content">
+                <!-- Market header -->
+                <section class="card">
+                    <h2 id="market-title">Loading...</h2>
+                    <div class="market-info">
+                        <div class="info-item">
+                            <span class="label">Market ID:</span>
+                            <span id="market-id" class="value"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Symbol:</span>
+                            <span id="market-symbol" class="value"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Status:</span>
+                            <span id="market-status" class="value status"></span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Price to Beat & Deviation -->
+                <section class="card">
+                    <h2>💰 Price to Beat & Deviation</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">Price to Beat</div>
+                            <div id="price-to-beat" class="metric-value large">$0.00</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Current Price</div>
+                            <div id="current-price" class="metric-value">$0.00</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Deviation</div>
+                            <div id="deviation" class="metric-value">0.00%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Position</div>
+                            <div id="position" class="metric-value">N/A</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Orderbook -->
+                <section class="card">
+                    <h2>💰 Orderbook</h2>
+                    <div class="orderbook-grid">
+                        <div class="orderbook-side">
+                            <h3>UP Side</h3>
+                            <div class="metrics-grid">
+                                <div class="metric">Bid: $<span id="up-bid">0.0000</span></div>
+                                <div class="metric">Ask: $<span id="up-ask">0.0000</span></div>
+                                <div class="metric">Spread: $<span id="up-spread">0.0000</span></div>
+                            </div>
+                        </div>
+                        <div class="orderbook-side">
+                            <h3>DOWN Side</h3>
+                            <div class="metrics-grid">
+                                <div class="metric">Bid: $<span id="down-bid">0.0000</span></div>
+                                <div class="metric">Ask: $<span id="down-ask">0.0000</span></div>
+                                <div class="metric">Spread: $<span id="down-spread">0.0000</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Probabilities -->
+                <section class="card">
+                    <h2>🎲 Probabilities & Edge</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">UP Edge</div>
+                            <div id="up-edge" class="metric-value">0.0%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">DOWN Edge</div>
+                            <div id="down-edge" class="metric-value">0.0%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">UP Touch Prob</div>
+                            <div id="up-prob" class="metric-value">0.0%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">DOWN Touch Prob</div>
+                            <div id="down-prob" class="metric-value">0.0%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">UP Absorption Prob</div>
+                            <div id="up-absorption-prob" class="metric-value">0.0%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">DOWN Absorption Prob</div>
+                            <div id="down-absorption-prob" class="metric-value">0.0%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">KF Score</div>
+                            <div id="kf-score" class="metric-value">0.00</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Z-Score</div>
+                            <div id="z-score" class="metric-value">0.00</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Probability Formula -->
+                <section class="card">
+                    <h2>🧮 Probability Formula</h2>
+                    <div class="formula-section">
+                        <div class="formula-equation">
+                            <strong>Formula:</strong> <code id="formula-equation">P = 1 - Φ(z)</code>
+                        </div>
+                        <div class="formula-explanation">
+                            <strong>Where:</strong> <span id="formula-explanation">z = price_move_pct / std_dev_pct</span>
+                        </div>
+                        <div class="formula-variables">
+                            <div class="var-grid">
+                                <div class="var-item">
+                                    <span class="var-label">Volatility Used:</span>
+                                    <span id="vol-used" class="var-value">0.00%</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Time Remaining:</span>
+                                    <span id="time-remaining-var" class="var-value">0.0 min</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Price Move %:</span>
+                                    <span id="price-move-pct" class="var-value">0.00%</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Std Dev %:</span>
+                                    <span id="std-dev-pct" class="var-value">0.00%</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Z-Score:</span>
+                                    <span id="z-score-var" class="var-value">0.00</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Market Direction:</span>
+                                    <span id="market-direction" class="var-value">UNKNOWN</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Std Dev Calculation -->
+                <section class="card">
+                    <h2>📊 Std Dev % Calculation</h2>
+                    <div class="formula-section">
+                        <div class="formula-equation">
+                            <strong>Formula:</strong> <code id="std-dev-formula">std_dev_pct = volatility_pct × √(time_remaining / vol_period)</code>
+                        </div>
+                        <div class="formula-variables">
+                            <div class="var-grid">
+                                <div class="var-item">
+                                    <span class="var-label">Volatility %:</span>
+                                    <span id="std-dev-vol-pct" class="var-value">0.0000</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Time Remaining (min):</span>
+                                    <span id="std-dev-time-remaining" class="var-value">0.0</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Vol Period (min):</span>
+                                    <span id="std-dev-vol-period" class="var-value">0.0</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Time Ratio:</span>
+                                    <span id="std-dev-time-ratio" class="var-value">0.0000</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Square Root:</span>
+                                    <span id="std-dev-sqrt" class="var-value">0.0000</span>
+                                </div>
+                                <div class="var-item">
+                                    <span class="var-label">Std Dev % Result:</span>
+                                    <span id="std-dev-result" class="var-value">0.0000%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recommendation -->
+                <section class="card">
+                    <h2>📊 Trading Recommendation</h2>
+                    <div class="recommendation">
+                        <div class="rec-main">
+                            <div class="rec-action">
+                                <span class="label">Action:</span>
+                                <span id="rec-action" class="value">N/A</span>
+                            </div>
+                            <div class="rec-confidence">
+                                <span class="label">Confidence:</span>
+                                <span id="rec-confidence" class="value">0%</span>
+                            </div>
+                        </div>
+                        <div class="rec-reason">
+                            <span class="label">Reason:</span>
+                            <span id="rec-reason" class="value">N/A</span>
+                        </div>
+                    </div>
+
+                    <!-- Manual Entry Buttons -->
+                    <div class="entry-buttons" style="margin-top: 20px; text-align: center;">
+                        <button id="enter-up-btn" onclick="manualEnterMarket('UP')" class="entry-btn up-btn" disabled>
+                            🚀 Войти в UP
+                        </button>
+                        <button id="enter-down-btn" onclick="manualEnterMarket('DOWN')" class="entry-btn down-btn" disabled>
+                            🚀 Войти в DOWN
+                        </button>
+                        <div id="entry-status" style="margin-top: 10px; font-size: 0.9rem; color: var(--gray-color);">
+                            Загрузка...
+                        </div>
+                    </div>
+
+                    <!-- Test Buy Buttons (real orders, bypass SIM) -->
+                    <div class="entry-buttons" style="margin-top: 10px; text-align: center;">
+                        <button id="buy-up-btn" onclick="quickBuyOrder('UP')" class="entry-btn up-btn" disabled>
+                            💰 BUY UP $1
+                        </button>
+                        <button id="buy-down-btn" onclick="quickBuyOrder('DOWN')" class="entry-btn down-btn" disabled>
+                            💰 BUY DOWN $1
+                        </button>
+                        <div id="buy-order-status" style="margin-top: 10px; font-size: 0.9rem; color: var(--gray-color);"></div>
+                    </div>
+                </section>
+
+                <!-- Time Metrics -->
+                <section class="card">
+                    <h2>⏰ Time Metrics</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">Time Remaining</div>
+                            <div id="time-remaining" class="metric-value">0.0 min</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Market Duration</div>
+                            <div id="market-duration" class="metric-value">0.0 min</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Time Since Open</div>
+                            <div id="time-since-open" class="metric-value">0.0 min</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Volatility -->
+                <section class="card">
+                    <h2>📈 Volatility</h2>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">5min Volatility</div>
+                            <div id="vol-5m" class="metric-value">0.00%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">15min Volatility</div>
+                            <div id="vol-15m" class="metric-value">0.00%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">1h Volatility</div>
+                            <div id="vol-1h" class="metric-value">0.00%</div>
+                        </div>
+                    </div>
+                </section>
+                </div>
+
+                <!-- Open Positions Tab -->
+                <div id="positions-tab" class="tab-content" style="display: none;">
+                    <section class="card">
+                        <h2>📊 Open Positions</h2>
+                        <div id="positions-loading" class="loading">
+                            <p>Loading positions...</p>
+                        </div>
+                        <div id="positions-list" class="positions-grid" style="display: none;">
+                            <!-- Positions will be loaded here -->
+                        </div>
+                        <div id="positions-error" class="error-message" style="display: none;">
+                            <p>Failed to load positions. Please try again later.</p>
+                        </div>
+                        <div style="margin-top: 15px; text-align: center;">
+                            <button onclick="loadMarketPositions()" class="refresh-btn" id="refresh-positions-btn">
+                                🔄 Refresh Positions
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div id="error" class="error-message" style="display: none;">
+                <p id="error-message">Failed to load market data. Please try again.</p>
+                <a href="/" class="btn-try">Back to Markets</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/market_detail.js?v=20260201"></script>
+</body>
+</html>

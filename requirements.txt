@@ -1,0 +1,33 @@
+# Polymarket
+py-clob-client>=0.5.7
+eth-utils>=2.3.0
+
+# HTTP и WebSocket
+requests>=2.31.0
+aiohttp>=3.9.0
+websocket-client>=1.7.0
+websockets==10.4
+
+# Binance и технический анализ
+python-binance==1.0.17
+ccxt==4.0.78
+pandas>=2.1.4
+numpy>=1.26.3
+
+# Индикаторы
+ta>=0.11.0
+
+# Web UI
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9
+
+# Утилиты
+python-dotenv>=1.0.0
+schedule>=1.2.0
+
+# Web3 для баланса USDC
+web3>=6.15.0
+
+# Мониторинг процессов
+psutil>=5.9.0

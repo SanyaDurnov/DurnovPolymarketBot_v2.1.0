@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Durnov Polybot V2</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Durnov Polybot V2</h1>
+            <p class="subtitle">Advanced trading bot for Polymarket with probability analysis</p>
+            <nav>
+                <a href="/" class="active">Dashboard</a>
+                <a href="/statistics">Statistics</a>
+                <a href="/configurations">Configurations</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="card">
+                <h2>📊 Filtered Markets</h2>
+                <div id="markets-loading" class="loading">
+                    <p>Loading markets...</p>
+                </div>
+                <div id="markets-list" class="markets-grid" style="display: none;">
+                    <!-- Markets will be loaded here -->
+                </div>
+                <div id="markets-error" class="error-message" style="display: none;">
+                    <p>Failed to load markets. Please try again later.</p>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>📖 API Documentation</h2>
+                <p>Complete API documentation available at: <a href="/docs" class="link">/docs</a></p>
+            </section>
+
+            <section class="card">
+                <h2>📊 Market Indicators</h2>
+                <div id="indicators-loading" class="loading">
+                    <p>Loading market indicators...</p>
+                </div>
+                <div id="indicators-list" class="indicators-grid" style="display: none;">
+                    <!-- Market indicators will be loaded here -->
+                </div>
+                <div id="indicators-error" class="error-message" style="display: none;">
+                    <p>Failed to load market indicators. Please try again later.</p>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>🎯 Top Entry Markets</h2>
+                <div class="market-tabs">
+                    <button class="tab-btn active" onclick="showMarketTab('15m')">15-Min Markets</button>
+                    <button class="tab-btn" onclick="showMarketTab('1h')">1-Hour Markets</button>
+                    <button class="tab-btn" onclick="showMarketTab('all')">All Markets</button>
+                </div>
+                <div id="top-markets-loading" class="loading">
+                    <p>Loading top entry markets...</p>
+                </div>
+                <div id="top-markets-15m" class="top-markets-grid" style="display: none;">
+                    <!-- 15-minute markets will be loaded here -->
+                </div>
+                <div id="top-markets-1h" class="top-markets-grid" style="display: none;">
+                    <!-- 1-hour markets will be loaded here -->
+                </div>
+                <div id="top-markets-all" class="top-markets-grid" style="display: none;">
+                    <!-- All markets will be loaded here -->
+                </div>
+                <div id="top-markets-error" class="error-message" style="display: none;">
+                    <p>Failed to load top entry markets. Please try again later.</p>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>ℹ️ System Status</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-label">Mode:</span>
+                        <span class="status-value" id="sim-mode">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Total Balance:</span>
+                        <span class="status-value" id="total-balance">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Account 1 (Poly):</span>
+                        <span class="status-value" id="account-1-balance">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Account 2 (Web3):</span>
+                        <span class="status-value" id="account-2-balance">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Active Positions:</span>
+                        <span class="status-value" id="positions">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Collector:</span>
+                        <span class="status-value" id="collector-status">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">API Status:</span>
+                        <span class="status-value" id="api-status">Loading...</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Last Update:</span>
+                        <span class="status-value" id="last-update">Loading...</span>
+                    </div>
+                </div>
+                <div style="margin-top: 15px; text-align: center;">
+                    <button onclick="loadSystemStatus()" class="refresh-btn" id="refresh-btn">
+                        🔄 Refresh Status
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

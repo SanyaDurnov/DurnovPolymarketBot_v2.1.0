@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Bot V2 - Configurations</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/main.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Polymarket Bot V2</h1>
+            <nav>
+                <a href="/">Dashboard</a>
+                <a href="/configurations" class="active">Configurations</a>
+            </nav>
+        </header>
+
+        <main>
+            <section id="auto-entry-config">
+                <h2>⚙️ Auto-Entry System Configuration</h2>
+                <p class="description">
+                    Настройки системы автоматического входа в рынки перед их стартом.
+                    Система запускает сессии каждые 15 минут для постепенного входа в позиции.
+                </p>
+
+                <div id="config-loading" class="loading">
+                    Загрузка настроек...
+                </div>
+
+                <div id="config-content" class="hidden">
+                    <form id="config-form">
+                        <div class="config-grid">
+                            <!-- Настройки будут загружены через JavaScript -->
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-save" id="save-btn">
+                                💾 Save Changes
+                            </button>
+                            <div id="save-status" class="save-status"></div>
+                        </div>
+                    </form>
+
+                    <div class="schedule-info">
+                        <h3>📅 Расписание работы</h3>
+                        <div id="schedule-content">
+                            <!-- Информация о расписании -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Загрузка настроек при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfigurations();
+        });
+
+        async function loadConfigurations() {
+            try {
+                const response = await fetch('/api/auto-entry/config');
+                const data = await response.json();
+
+                displayConfigurations(data);
+            } catch (error) {
+                console.error('Ошибка загрузки настроек:', error);
+                document.getElementById('config-loading').innerHTML =
+                    '<div class="error">Ошибка загрузки настроек</div>';
+            }
+        }
+
+        function displayConfigurations(data) {
+            // Скрываем загрузку
+            document.getElementById('config-loading').classList.add('hidden');
+            document.getElementById('config-content').classList.remove('hidden');
+
+            // Отображаем настройки
+            const configGrid = document.querySelector('.config-grid');
+            configGrid.innerHTML = '';
+
+            data.settings.forEach(setting => {
+                const settingDiv = document.createElement('div');
+                settingDiv.className = 'config-item';
+
+                let inputField;
+                if (setting.type === 'boolean') {
+                    inputField = `
+                        <select name="${setting.key}" class="config-input">
+                            <option value="true" ${setting.value ? 'selected' : ''}>✅ Включено</option>
+                            <option value="false" ${!setting.value ? 'selected' : ''}>❌ Отключено</option>
+                        </select>
+                    `;
+                } else {
+                    inputField = `<input type="number" name="${setting.key}" value="${setting.value}" class="config-input" step="0.01" min="0" max="100">`;
+                }
+
+                settingDiv.innerHTML = `
+                    <div class="config-header">
+                        <strong>${setting.key}</strong>
+                        ${inputField}
+                    </div>
+                    <div class="config-description">
+                        ${setting.description}
+                    </div>
+                `;
+
+                configGrid.appendChild(settingDiv);
+            });
+
+            // Отображаем информацию о расписании
+            const scheduleContent = document.getElementById('schedule-content');
+            scheduleContent.innerHTML = `
+                <div class="schedule-item">
+                    <strong>Время запуска сессий:</strong> ${data.schedule.description}
+                </div>
+                <div class="schedule-item">
+                    <strong>Итераций в сессии:</strong> ${data.schedule.iterations_per_session}
+                </div>
+                <div class="schedule-item">
+                    <strong>Задержка между итерациями:</strong> ${data.schedule.iteration_delay} сек
+                </div>
+                <div class="schedule-item">
+                    <strong>Общая длительность сессии:</strong> ${data.schedule.total_session_time}
+                </div>
+            `;
+
+            // Добавляем обработчик формы
+            document.getElementById('config-form').addEventListener('submit', handleSave);
+        }
+
+        async function handleSave(event) {
+            event.preventDefault();
+
+            const saveBtn = document.getElementById('save-btn');
+            const saveStatus = document.getElementById('save-status');
+
+            // Собираем данные формы
+            const formData = new FormData(event.target);
+            const configData = {};
+
+            for (let [key, value] of formData.entries()) {
+                // Конвертируем значения
+                if (value === 'true') {
+                    configData[key] = true;
+                } else if (value === 'false') {
+                    configData[key] = false;
+                } else if (!isNaN(value) && value !== '') {
+                    configData[key] = parseFloat(value);
+                } else {
+                    configData[key] = value;
+                }
+            }
+
+            // Отправляем на сервер
+            try {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '⏳ Saving...';
+
+                const response = await fetch('/api/auto-entry/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(configData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    saveStatus.innerHTML = '<span style="color: #28a745;">✅ Настройки сохранены успешно!</span>';
+                    setTimeout(() => saveStatus.innerHTML = '', 3000);
+                } else {
+                    throw new Error(result.detail || 'Ошибка сохранения');
+                }
+
+            } catch (error) {
+                console.error('Ошибка сохранения:', error);
+                saveStatus.innerHTML = `<span style="color: #dc3545;">❌ Ошибка: ${error.message}</span>`;
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '💾 Save Changes';
+            }
+        }
+    </script>
+
+    <style>
+        .config-grid {
+            display: grid;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .config-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: box-shadow 0.2s;
+        }
+
+        .config-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .config-header strong {
+            color: #2c3e50;
+            font-size: 1.1rem;
+        }
+
+        .config-value {
+            background: #007bff;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .config-description {
+            color: #6c757d;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .schedule-info {
+            background: #e8f4fd;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .schedule-info h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+
+        .schedule-item {
+            margin-bottom: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #d1ecf1;
+        }
+
+        .schedule-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .schedule-item strong {
+            color: #0056b3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .description {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            color: #856404;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .form-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .btn-save {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-save:hover:not(:disabled) {
+            background: #218838;
+        }
+
+        .btn-save:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .save-status {
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .config-input {
+            padding: 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            width: 120px;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+    </style>
+</body>
+</html>

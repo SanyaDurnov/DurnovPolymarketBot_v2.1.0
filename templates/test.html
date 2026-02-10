@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тестирование случайного рынка - Polymarket Bot V2</title>
+    <link rel="stylesheet" href="/static/css/test.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Durnov Polybot V2</h1>
+            <p class="subtitle">Test Market Analysis</p>
+            <nav>
+                <a href="/">Dashboard</a>
+                <a href="/test" class="active">Test Analysis</a>
+                <a href="/configurations">Configurations</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="action-section">
+                <button id="analyzeBtn" class="btn-analyze" onclick="analyzeRandomMarket()">
+                    🎯 Проанализировать случайный рынок
+                </button>
+            </section>
+
+            <section id="result" class="result-section hidden">
+                <!-- Results will be inserted here by JavaScript -->
+            </section>
+
+            <section class="info-section">
+                <div class="info-card">
+                    <h3>📋 Инструкция</h3>
+                    <p>Нажмите кнопку выше для выбора случайного рынка и получения полного анализа:</p>
+                    <ul>
+                        <li>💰 Price to Beat и deviation от начальной цены</li>
+                        <li>💰 Orderbook (bid/ask/spread)</li>
+                        <li>🎲 Математические вероятности и edge</li>
+                        <li>📊 Рекомендации для входа</li>
+                        <li>⏰ Временные метрики</li>
+                        <li>📈 Волатильность и индикаторы</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/test.js"></script>
+</body>
+</html>

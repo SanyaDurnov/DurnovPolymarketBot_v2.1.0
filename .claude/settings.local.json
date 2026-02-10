@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(./start_services.sh:*)",
+      "Bash(ls:*)",
+      "Bash(pip3 install:*)"
+    ]
+  }
+}
