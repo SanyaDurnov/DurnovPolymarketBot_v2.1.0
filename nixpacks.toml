@@ -1,2 +1,5 @@
 [phases.setup]
-nixPkgs = ["libstdcxx5"]
+nixPkgs = ["python3", "libstdcxx5"]
+
+[variables]
+NIXPACKS_PYTHON_VERSION = "3"
