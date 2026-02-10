@@ -307,7 +307,7 @@ def web_mode():
             app,
             host=config.WEB_HOST,
             port=config.WEB_PORT,
-            log_level="info",
+            log_level="warning",
         )
 
     except ImportError as exc:

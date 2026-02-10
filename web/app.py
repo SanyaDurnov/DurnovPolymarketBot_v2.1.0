@@ -27,7 +27,6 @@ from app.config import (
     SIMULATION_INITIAL_BALANCE,
     AUTO_GENERATE_FILTERS,
     GAMMA_API_TAG,
-    LOG_LEVEL,
     ACCOUNT_2_TYPE,
     POLYMARKET_WALLET_ADDRESS_1,
     POLYMARKET_WALLET_ADDRESS_2,
@@ -47,13 +46,29 @@ from trading.market_monitor import MarketMonitor
 from app.monitoring.collector_monitor import collector_monitor
 
 # Настраиваем логирование для вывода в консоль
+# Root logger на WARNING — только критичные ошибки от всех модулей
+# force=True чтобы перезаписать basicConfig из main.py (basicConfig работает только 1 раз без force)
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.WARNING,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),  # Вывод в консоль
-    ]
+        logging.StreamHandler(sys.stdout),
+    ],
+    force=True,
 )
+
+# Торговые модули — полные INFO логи
+for _module in [
+    "trading.auto_entry",
+    "trading.position_manager",
+    "trading.position_manager_soft_trading",
+    "trading.soft_trading_entry",
+    "trading.order_manager",
+    "trading.market_monitor",
+    "trading.position",
+    "web.app",
+]:
+    logging.getLogger(_module).setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 
