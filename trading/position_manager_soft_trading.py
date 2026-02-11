@@ -664,11 +664,15 @@ class PositionManagerSoftTrading:
 
             if result and result.get("success"):
                 # Создать объект позиции
+                # Получить title из кэша PriceToBeatService
+                _minfo = self.price_to_beat_service.get_market_info(self.market_id)
+                _mtitle = _minfo.get("title", f"Market {self.market_id}") if _minfo else f"Market {self.market_id}"
+
                 position = Position(
                     position_id=f"pos_{self.market_id}_{int(datetime.now(timezone.utc).timestamp())}_{entry_reason.lower()}",
                     market_id=self.market_id,
-                    market_title=f"Market {self.market_id}",  # TODO: получить реальное название
-                    symbol="UNKNOWN",  # TODO: определить символ
+                    market_title=_mtitle,
+                    symbol=self.symbol,
                     side=side,
                     entry_time=datetime.now(timezone.utc),
                     entry_price_avg=price,

@@ -24,6 +24,7 @@
                 <div class="market-tabs">
                     <button class="tab-btn active" onclick="showMarketDetailTab('analysis')">Market Analysis</button>
                     <button class="tab-btn" onclick="showMarketDetailTab('positions')">Open Positions</button>
+                    <button class="tab-btn" onclick="showMarketDetailTab('logs')">Logs</button>
                 </div>
 
                 <!-- Market Analysis Tab -->
@@ -315,6 +316,68 @@
                         </div>
                     </section>
                 </div>
+
+                <!-- Logs Tab -->
+                <div id="logs-tab" class="tab-content" style="display: none;">
+                    <section class="card log-viewer-card">
+                        <div class="log-viewer-header">
+                            <h2>Terminal Logs</h2>
+                            <div class="log-controls">
+                                <label class="log-control-item">
+                                    <input type="checkbox" id="log-auto-scroll" checked> Auto-scroll
+                                </label>
+                                <button onclick="clearLogViewer()" class="log-clear-btn">Clear</button>
+                                <span id="log-count" class="log-count-badge">0 entries</span>
+                            </div>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="log-filters">
+                            <div class="log-filter-group">
+                                <span class="log-filter-title">Level:</span>
+                                <label class="log-filter-badge badge-info">
+                                    <input type="checkbox" checked data-filter="level" value="INFO"> INFO
+                                </label>
+                                <label class="log-filter-badge badge-warning">
+                                    <input type="checkbox" checked data-filter="level" value="WARNING"> WARNING
+                                </label>
+                                <label class="log-filter-badge badge-error">
+                                    <input type="checkbox" checked data-filter="level" value="ERROR"> ERROR
+                                </label>
+                                <label class="log-filter-badge badge-debug">
+                                    <input type="checkbox" data-filter="level" value="DEBUG"> DEBUG
+                                </label>
+                            </div>
+                            <div class="log-filter-group">
+                                <span class="log-filter-title">Category:</span>
+                                <label class="log-filter-badge badge-category">
+                                    <input type="checkbox" checked data-filter="category" value="Trading"> Trading
+                                </label>
+                                <label class="log-filter-badge badge-category">
+                                    <input type="checkbox" checked data-filter="category" value="Entry"> Entry
+                                </label>
+                                <label class="log-filter-badge badge-category">
+                                    <input type="checkbox" checked data-filter="category" value="Monitor"> Monitor
+                                </label>
+                                <label class="log-filter-badge badge-category">
+                                    <input type="checkbox" checked data-filter="category" value="Orders"> Orders
+                                </label>
+                                <label class="log-filter-badge badge-category">
+                                    <input type="checkbox" checked data-filter="category" value="Analysis"> Analysis
+                                </label>
+                                <label class="log-filter-badge badge-category">
+                                    <input type="checkbox" checked data-filter="category" value="Positions"> Positions
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="log-terminal" class="log-terminal">
+                            <div id="log-entries" class="log-entries">
+                                <p class="log-placeholder">Waiting for logs...</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
             </div>
 
             <div id="error" class="error-message" style="display: none;">
@@ -324,6 +387,6 @@
         </main>
     </div>
 
-    <script src="/static/js/market_detail.js?v=20260201"></script>
+    <script src="/static/js/market_detail.js?v=20260211"></script>
 </body>
 </html>

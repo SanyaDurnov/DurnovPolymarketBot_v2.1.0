@@ -43,6 +43,13 @@ function showMarketDetailTab(tabName) {
         console.log('Loading positions...');
         loadMarketPositions();
     }
+
+    // Start/stop log polling based on tab
+    if (tabName === 'logs') {
+        startLogPolling();
+    } else {
+        stopLogPolling();
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -569,4 +576,180 @@ function showError(errorMessage = 'Failed to load market data. Please try again.
 
     loadingDiv.style.display = 'none';
     errorDiv.style.display = 'block';
+}
+
+
+// ==========================================
+// Log Viewer
+// ==========================================
+
+let logLatestId = 0;
+let logPollInterval = null;
+let logEntryCount = 0;
+let allLogEntries = [];
+
+// Category mapping: logger_name -> category
+const CATEGORY_MAP = {
+    'trading.position_manager': 'Trading',
+    'trading.position_manager_soft_trading': 'Trading',
+    'trading.auto_entry': 'Entry',
+    'trading.soft_trading_entry': 'Entry',
+    'trading.market_monitor': 'Monitor',
+    'trading.order_manager': 'Orders',
+    'trading.position': 'Positions',
+};
+
+function getCategory(loggerName) {
+    if (CATEGORY_MAP[loggerName]) return CATEGORY_MAP[loggerName];
+    if (loggerName.startsWith('analysis.')) return 'Analysis';
+    return null;
+}
+
+function getActiveFilters() {
+    const levels = new Set();
+    const categories = new Set();
+
+    document.querySelectorAll('input[data-filter="level"]:checked').forEach(cb => {
+        levels.add(cb.value);
+    });
+    document.querySelectorAll('input[data-filter="category"]:checked').forEach(cb => {
+        categories.add(cb.value);
+    });
+
+    return { levels, categories };
+}
+
+function matchesFilters(entry, filters) {
+    if (!filters.levels.has(entry.level)) return false;
+    const cat = getCategory(entry.logger_name);
+    if (cat && !filters.categories.has(cat)) return false;
+    // If category is unknown (not in map), show it anyway
+    return true;
+}
+
+function startLogPolling() {
+    if (logPollInterval) return;
+
+    // Attach filter change listeners once
+    document.querySelectorAll('input[data-filter]').forEach(cb => {
+        if (!cb.dataset.listenerAttached) {
+            cb.addEventListener('change', renderAllLogs);
+            cb.dataset.listenerAttached = 'true';
+        }
+    });
+
+    fetchMarketLogs();
+    logPollInterval = setInterval(fetchMarketLogs, 3000);
+}
+
+function stopLogPolling() {
+    if (logPollInterval) {
+        clearInterval(logPollInterval);
+        logPollInterval = null;
+    }
+}
+
+async function fetchMarketLogs() {
+    const marketId = window.location.pathname.split('/').pop();
+    if (!marketId) return;
+
+    try {
+        const response = await fetch(`/api/market/${marketId}/logs?after_id=${logLatestId}&limit=200`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.count > 0) {
+            allLogEntries.push(...data.logs);
+            logLatestId = data.latest_id;
+            appendFilteredLogs(data.logs);
+        }
+    } catch (error) {
+        console.error('Error fetching logs:', error);
+    }
+}
+
+function appendFilteredLogs(newLogs) {
+    const container = document.getElementById('log-entries');
+    const terminal = document.getElementById('log-terminal');
+    const countBadge = document.getElementById('log-count');
+    const autoScroll = document.getElementById('log-auto-scroll');
+    const filters = getActiveFilters();
+
+    const placeholder = container.querySelector('.log-placeholder');
+    if (placeholder && allLogEntries.length > 0) placeholder.remove();
+
+    let added = 0;
+    newLogs.forEach(entry => {
+        if (matchesFilters(entry, filters)) {
+            container.appendChild(createLogLine(entry));
+            added++;
+        }
+    });
+
+    if (added > 0) {
+        logEntryCount += added;
+        if (countBadge) countBadge.textContent = `${logEntryCount} entries`;
+        if (autoScroll && autoScroll.checked) {
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+    }
+}
+
+function renderAllLogs() {
+    const container = document.getElementById('log-entries');
+    const terminal = document.getElementById('log-terminal');
+    const countBadge = document.getElementById('log-count');
+    const autoScroll = document.getElementById('log-auto-scroll');
+    const filters = getActiveFilters();
+
+    container.innerHTML = '';
+    logEntryCount = 0;
+
+    allLogEntries.forEach(entry => {
+        if (matchesFilters(entry, filters)) {
+            container.appendChild(createLogLine(entry));
+            logEntryCount++;
+        }
+    });
+
+    if (logEntryCount === 0) {
+        container.innerHTML = '<p class="log-placeholder">No logs match current filters.</p>';
+    }
+
+    if (countBadge) countBadge.textContent = `${logEntryCount} entries`;
+    if (autoScroll && autoScroll.checked) {
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+}
+
+function createLogLine(entry) {
+    const line = document.createElement('div');
+    line.className = `log-line level-${entry.level}`;
+
+    const ts = new Date(entry.timestamp * 1000).toLocaleTimeString('en-US', {
+        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+
+    line.innerHTML =
+        `<span class="log-timestamp">${ts}</span> ` +
+        `<span class="log-level">[${entry.level}]</span> ` +
+        `<span class="log-logger">${escapeHtml(entry.logger_name)}:</span> ` +
+        `<span class="log-message">${escapeHtml(entry.message)}</span>`;
+
+    return line;
+}
+
+function clearLogViewer() {
+    const container = document.getElementById('log-entries');
+    container.innerHTML = '<p class="log-placeholder">Log view cleared. New entries will appear here.</p>';
+    allLogEntries = [];
+    logEntryCount = 0;
+    const countBadge = document.getElementById('log-count');
+    if (countBadge) countBadge.textContent = '0 entries';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }

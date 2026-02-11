@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -45,7 +46,7 @@ class ChainlinkPriceCollector:
 
     # Интервалы
     SAVE_INTERVAL = 1 * 60     # Сохранять каждую минуту
-    MAX_ENTRIES = 100000       # Максимум 100k записей (~27 часов)
+    MAX_AGE_SECONDS = 6 * 3600 # Удалять записи старше 6 часов
 
     # Периодический сбор для price_to_beat
     COLLECTION_INTERVAL = 15 * 60  # Каждые 15 минут
@@ -153,13 +154,19 @@ class ChainlinkPriceCollector:
             logger.warning(f"Ошибка удаления lock файла: {e}")
 
     def _save_data(self) -> None:
-        """Сохранить данные в файл."""
+        """Сохранить данные в файл (атомарная запись через tmp + rename)."""
         try:
-            # Ограничиваем количество записей для каждого символа
+            # Удаляем записи старше 6 часов
+            cutoff = time.time() - self.MAX_AGE_SECONDS
             for symbol in self.price_buffers:
-                if len(self.price_buffers[symbol]) > self.MAX_ENTRIES:
-                    # Оставляем последние MAX_ENTRIES записей
-                    self.price_buffers[symbol] = self.price_buffers[symbol][-self.MAX_ENTRIES:]
+                before = len(self.price_buffers[symbol])
+                self.price_buffers[symbol] = [
+                    e for e in self.price_buffers[symbol]
+                    if e.get('timestamp', 0) > cutoff
+                ]
+                removed = before - len(self.price_buffers[symbol])
+                if removed > 0:
+                    logger.info(f"🧹 {symbol}: удалено {removed} записей старше 6ч")
 
             data = {
                 'last_updated': datetime.now().isoformat(),
@@ -167,8 +174,19 @@ class ChainlinkPriceCollector:
                 'prices': self.price_buffers
             }
 
-            with open(self.PRICE_DATA_FILE, 'w') as f:
-                json.dump(data, f, indent=2)
+            # Атомарная запись: пишем во временный файл, потом rename
+            # rename атомарен в POSIX — файл либо старый, либо новый, никогда не битый
+            dir_path = self.PRICE_DATA_FILE.parent
+            fd, tmp_path = tempfile.mkstemp(dir=str(dir_path), suffix='.tmp')
+            try:
+                with os.fdopen(fd, 'w') as f:
+                    json.dump(data, f, indent=2)
+                os.replace(tmp_path, str(self.PRICE_DATA_FILE))
+            except Exception:
+                # Удаляем tmp файл если rename не удался
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
             total_entries = sum(len(buffer) for buffer in self.price_buffers.values())
             symbols_info = ", ".join([f"{symbol}: {len(self.price_buffers[symbol])}" for symbol in self.price_buffers])

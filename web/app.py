@@ -44,6 +44,7 @@ from trading.position_manager import stop_all_position_managers
 from trading.position_manager_soft_trading import stop_all_position_managers_soft
 from trading.market_monitor import MarketMonitor
 from app.monitoring.collector_monitor import collector_monitor
+from app.log_handler import market_log_handler
 
 # Настраиваем логирование для вывода в консоль
 # Root logger на WARNING — только критичные ошибки от всех модулей
@@ -69,6 +70,13 @@ for _module in [
     "web.app",
 ]:
     logging.getLogger(_module).setLevel(logging.INFO)
+
+# In-memory handler для просмотра логов на UI (по маркету)
+market_log_handler.setFormatter(logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+))
+market_log_handler.setLevel(logging.DEBUG)
+logging.getLogger().addHandler(market_log_handler)
 
 logger = logging.getLogger(__name__)
 
@@ -858,6 +866,19 @@ async def test_run_auto_entry():
     except Exception as exc:
         logger.error("Ошибка при ручном запуске сессии: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/api/market/{market_id}/logs")
+async def get_market_logs(market_id: str, after_id: int = 0, limit: int = 200):
+    """Логи по конкретному маркету (фильтрация по market_id в тексте сообщения)."""
+    limit = min(limit, 500)
+    logs = market_log_handler.get_logs_for_market(
+        market_id=market_id,
+        after_id=after_id,
+        limit=limit,
+    )
+    latest_id = logs[-1]["id"] if logs else after_id
+    return {"logs": logs, "latest_id": latest_id, "count": len(logs)}
 
 
 @app.post("/api/market/{market_id}/enter")

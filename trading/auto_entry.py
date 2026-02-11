@@ -331,11 +331,16 @@ class AutoEntrySystem:
         else:
             logger.warning(f"⚠️  Не удалось получить price_to_beat для {market_id}")
 
+        # Получить symbol и title из кэша PriceToBeatService
+        market_info = self.price_to_beat_service.get_market_info(market_id)
+        market_symbol = market_info.get("symbol", "UNKNOWN") if market_info else "UNKNOWN"
+        market_title = market_info.get("title", f"Market {market_id}") if market_info else f"Market {market_id}"
+
         position = Position(
             position_id=f"pos_{market_id}_{int(datetime.now(timezone.utc).timestamp())}",
             market_id=market_id,
-            market_title=f"Market {market_id}",  # Используем market_id для генерации title
-            symbol="UNKNOWN",  # market.get("symbol", "UNKNOWN"),  # Упростим
+            market_title=market_title,
+            symbol=market_symbol,
             side=side,
             entry_time=datetime.now(timezone.utc),
             entry_price_avg=self.average_price if SIM_MODE else current_price,
