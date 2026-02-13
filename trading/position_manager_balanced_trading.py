@@ -371,7 +371,84 @@ class PositionManagerBalancedTrading:
 
         return alpha_star_up, alpha_star_down
 
+    # ──────────────────────────────────────────────
+    #  Начальный вход
+    # ──────────────────────────────────────────────
 
+    async def _execute_initial_entry(self) -> None:
+        """
+        Выполнить начальный двусторонний вход.
+
+        Берёт B_step = balance * MAX_BUDGET_PCT/100 * STEP_PCT/100,
+        рассчитывает alpha_star, распределяет между UP и DOWN.
+        """
+        try:
+            # Получить баланс
+            balance = self.order_manager.get_balance()
+            if balance <= 0:
+                logger.warning(f"[{self.market_id}] Баланс = 0, не можем войти")
+                return
+
+            # Бюджет на этот рынок
+            max_budget = balance * (BALANCED_ENTRY_MAX_BUDGET_PCT / 100.0)
+            b_step = max_budget * (BALANCED_ENTRY_STEP_PCT / 100.0)
+
+            logger.info(f"⚖️ [{self.market_id}] НАЧАЛЬНЫЙ ДВУСТОРОННИЙ ВХОД")
+            logger.info(f"   💰 Баланс: ${balance:.2f}")
+            logger.info(f"   📊 Макс бюджет на рынок: ${max_budget:.2f} ({BALANCED_ENTRY_MAX_BUDGET_PCT}%)")
+            logger.info(f"   📊 Бюджет на шаг: ${b_step:.2f} ({BALANCED_ENTRY_STEP_PCT}%)")
+
+            # Получить текущие цены из orderbook
+            p_u = await self._get_current_price("UP")
+            p_d = await self._get_current_price("DOWN")
+
+            if not p_u or not p_d:
+                logger.warning(f"[{self.market_id}] Не удалось получить цены UP/DOWN, пропуск")
+                return
+
+            # Получить math_prob_up
+            math_prob_up = self._get_math_prob_up()
+
+            # Рассчитать alpha_star
+            alpha_up, alpha_down = self._calculate_alpha_star(p_u, p_d, math_prob_up)
+            self.current_alpha_star_up = alpha_up
+            self.current_alpha_star_down = alpha_down
+
+            # Целевые суммы
+            amount_up = b_step * alpha_up
+            amount_down = b_step * alpha_down
+
+            logger.info(f"   🧮 math_prob_up: {math_prob_up:.3f}")
+            logger.info(f"   🧮 alpha_star: UP={alpha_up:.3f}, DOWN={alpha_down:.3f}")
+            logger.info(f"   💵 Суммы: UP=${amount_up:.2f}, DOWN=${amount_down:.2f}")
+            logger.info(f"   💰 Цены: UP=${p_u:.4f}, DOWN=${p_d:.4f}")
+
+            # Выполнить покупки (обе стороны)
+            bought_up = False
+            bought_down = False
+
+            if amount_up >= BALANCED_ENTRY_MIN_TRADE_USD:
+                await self._enter_position("UP", amount_up, p_u, "BALANCED_INITIAL")
+                bought_up = True
+            else:
+                logger.info(f"   ⏭️ UP: ${amount_up:.2f} < мин ${BALANCED_ENTRY_MIN_TRADE_USD}, пропуск")
+
+            if amount_down >= BALANCED_ENTRY_MIN_TRADE_USD:
+                await self._enter_position("DOWN", amount_down, p_d, "BALANCED_INITIAL")
+                bought_down = True
+            else:
+                logger.info(f"   ⏭️ DOWN: ${amount_down:.2f} < мин ${BALANCED_ENTRY_MIN_TRADE_USD}, пропуск")
+
+            if bought_up or bought_down:
+                self.initial_entry_done = True
+                self.entry_step_count = 1
+                self.last_buy_time = datetime.now(timezone.utc)
+                logger.info(f"✅ [{self.market_id}] Начальный вход выполнен (шаг 1/{BALANCED_ENTRY_MAX_STEPS})")
+            else:
+                logger.warning(f"[{self.market_id}] Не удалось выполнить начальный вход")
+
+        except Exception as exc:
+            logger.error(f"[{self.market_id}] Ошибка при начальном входе: {exc}", exc_info=True)
 
     # ──────────────────────────────────────────────
     #  Перебалансировка
@@ -907,6 +984,102 @@ class PositionManagerBalancedTrading:
     # ──────────────────────────────────────────────
     #  Логирование
     # ──────────────────────────────────────────────
+
+    async def merge_positions_by_side(self, side: str) -> bool:
+        """
+        Объединить все позиции по указанной стороне в одну с средневзвешенной ценой входа.
+
+        Args:
+            side: "UP" или "DOWN"
+
+        Returns:
+            True если объединение произошло, False если позиций <= 1
+        """
+        try:
+            if side not in ["UP", "DOWN"]:
+                logger.error(f"[{self.market_id}] Неверная сторона для объединения: {side}")
+                return False
+
+            # Получить список позиций по стороне
+            positions_list = self.positions_up if side == "UP" else self.positions_down
+
+            if len(positions_list) <= 1:
+                logger.info(f"[{self.market_id}] Мало позиций для объединения {side}: {len(positions_list)}")
+                return False
+
+            logger.info(f"🔄 [{self.market_id}] ОБЪЕДИНЕНИЕ {len(positions_list)} ПОЗИЦИЙ {side}")
+
+            # Рассчитать общие метрики
+            total_cost = sum(p.total_cost_usd for p in positions_list)
+            total_volume = sum(p.total_volume for p in positions_list)
+
+            if total_volume <= 0:
+                logger.error(f"[{self.market_id}] Нулевой объем позиций {side}, объединение невозможно")
+                return False
+
+            # Средневзвешенная цена входа
+            weighted_avg_price = total_cost / total_volume
+
+            # Определить earliest_entry_time (самая ранняя позиция)
+            earliest_entry_time = min(p.entry_time for p in positions_list)
+
+            # Создать объединенную позицию
+            merged_position = Position(
+                position_id=f"pos_{self.market_id}_{int(datetime.now(timezone.utc).timestamp())}_{side.lower()}_merged",
+                market_id=self.market_id,
+                market_title=positions_list[0].market_title,  # Берем из первой позиции
+                symbol=positions_list[0].symbol,
+                side=side,
+                entry_time=earliest_entry_time,  # Самая ранняя дата входа
+                entry_price_avg=weighted_avg_price,
+                total_volume=total_volume,
+                total_cost_usd=total_cost,
+                entry_reason="MERGED_POSITIONS",  # Новый тип причины
+                market_start_time=positions_list[0].market_start_time,
+                minutes_until_start=positions_list[0].minutes_until_start,
+                start_price=positions_list[0].start_price,  # Price to beat
+            )
+
+            # Детальный лог объединения
+            logger.info(f"   📊 Статистика объединения:")
+            logger.info(f"      Общий объем: {total_volume:.4f} tokens")
+            logger.info(f"      Общая стоимость: ${total_cost:.2f}")
+            logger.info(f"      Средневзвешенная цена: ${weighted_avg_price:.4f}")
+            logger.info(f"      Самая ранняя позиция: {earliest_entry_time}")
+
+            # Показать детали по каждой позиции
+            for i, pos in enumerate(positions_list):
+                logger.info(f"      {i+1}. ${pos.total_cost_usd:.2f} @ ${pos.entry_price_avg:.4f} ({pos.entry_reason})")
+
+            # Удалить старые позиции из хранилища и списков
+            for old_pos in positions_list[:]:  # Копия списка для безопасной итерации
+                # Удалить из глобального хранилища
+                position_storage.positions.pop(old_pos.position_id, None)
+
+                # Удалить из локальных списков
+                if old_pos in self.positions:
+                    self.positions.remove(old_pos)
+                if old_pos in positions_list:
+                    positions_list.remove(old_pos)
+
+                logger.debug(f"      ❌ Удалена позиция {old_pos.position_id}")
+
+            # Добавить новую объединенную позицию
+            self.positions.append(merged_position)
+            positions_list.append(merged_position)
+            position_storage.add_position(merged_position)
+
+            logger.info(f"   ✅ Создана объединенная позиция {merged_position.position_id}")
+            logger.info(f"   📂 Итого позиций после объединения: UP={len(self.positions_up)}, DOWN={len(self.positions_down)}")
+
+            # Сохранить изменения
+            position_storage._save_positions()
+
+            return True
+
+        except Exception as exc:
+            logger.error(f"[{self.market_id}] Ошибка при объединении позиций {side}: {exc}", exc_info=True)
+            return False
 
     async def _log_status(self) -> None:
         """Логировать статус каждые ~10 секунд."""

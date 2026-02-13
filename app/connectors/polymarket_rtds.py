@@ -40,6 +40,12 @@ class PolymarketConnector:
         self._logged_first_price: bool = False
         self._reconnect_in_progress: bool = False
         self._stale_price_warnings: dict[str, float] = {}  # Когда последний раз предупреждали о застывшей цене
+
+        # Task references for proper cancellation
+        self._receive_task: Optional[asyncio.Task] = None
+        self._ping_task: Optional[asyncio.Task] = None
+        self._watchdog_task: Optional[asyncio.Task] = None
+
         logger.info("PolymarketConnector инициализирован")
 
     async def connect(self) -> None:
@@ -60,9 +66,9 @@ class PolymarketConnector:
 
             await self._subscribe()
 
-            asyncio.create_task(self._receive_messages())
-            asyncio.create_task(self._ping_loop())
-            asyncio.create_task(self._watchdog_loop())
+            self._receive_task = asyncio.create_task(self._receive_messages())
+            self._ping_task = asyncio.create_task(self._ping_loop())
+            self._watchdog_task = asyncio.create_task(self._watchdog_loop())
 
         except Exception as exc:  # noqa: BLE001
             logger.error("Ошибка подключения к Polymarket: %s", exc)
@@ -202,10 +208,25 @@ class PolymarketConnector:
             # Подписываемся
             await self._subscribe()
 
+            # Отменяем старые таски перед созданием новых
+            if self._receive_task and not self._receive_task.done():
+                self._receive_task.cancel()
+                try:
+                    await self._receive_task
+                except asyncio.CancelledError:
+                    pass
+
+            if self._ping_task and not self._ping_task.done():
+                self._ping_task.cancel()
+                try:
+                    await self._ping_task
+                except asyncio.CancelledError:
+                    pass
+
             # Перезапускаем только _receive_messages и _ping_loop
             # НЕ создаем новый watchdog - он уже работает!
-            asyncio.create_task(self._receive_messages())
-            asyncio.create_task(self._ping_loop())
+            self._receive_task = asyncio.create_task(self._receive_messages())
+            self._ping_task = asyncio.create_task(self._ping_loop())
 
             logger.info("✅ Таски _receive_messages и _ping_loop перезапущены")
 
@@ -297,6 +318,11 @@ class PolymarketConnector:
                 # Продолжаем попытки если еще не достигли лимита
                 continue
 
+            except websockets.exceptions.ConnectionClosed as exc:
+                # Нормальное закрытие соединения - не логируем как ошибку
+                logger.info("🔌 RTDS: соединение закрыто нормально (%s)", exc)
+                self.is_connected = False
+                break
             except Exception as exc:  # noqa: BLE001
                 logger.error("Ошибка в receive_messages Polymarket: %s", exc, exc_info=True)
                 self.is_connected = False
@@ -356,6 +382,23 @@ class PolymarketConnector:
         Отключиться от Polymarket.
         """
         self.is_connected = False
+
+        # Отменяем все активные таски
+        tasks_to_cancel = []
+        if self._receive_task and not self._receive_task.done():
+            tasks_to_cancel.append(self._receive_task)
+        if self._ping_task and not self._ping_task.done():
+            tasks_to_cancel.append(self._ping_task)
+        if self._watchdog_task and not self._watchdog_task.done():
+            tasks_to_cancel.append(self._watchdog_task)
+
+        for task in tasks_to_cancel:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
         if self.websocket:
             await self.websocket.close()
             self.websocket = None
