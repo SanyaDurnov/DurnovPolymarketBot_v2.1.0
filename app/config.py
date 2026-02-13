@@ -16,7 +16,8 @@ SIM_MODE = True  # True = симуляция, False = реальная торг�
 # === ВЫБОР СТРАТЕГИИ ===
 # "default" - стандартная стратегия с auto_entry и position_manager
 # "soft_trading" - мягкая стратегия без auto_entry (position_manager_soft_trading)
-TRADING_STRATEGY = os.getenv("TRADING_STRATEGY", "default")  # "default" или "soft_trading"
+# "balanced" - двусторонний вход с value-weighted перебалансировкой (position_manager_balanced_trading)
+TRADING_STRATEGY = os.getenv("TRADING_STRATEGY", "balanced")
 
 # === POLYMARKET API ===
 POLYMARKET_API_URL = os.getenv("POLYMARKET_API_URL", "https://clob.polymarket.com")
@@ -200,6 +201,24 @@ SOFT_TRADE_MIN_IMPROVEMENT_PCT = 2.0  # Минимальное улучшени�
 SOFT_TRADE_CHECK_INTERVAL = 1.0  # Интервал проверки рынков (сек)
 SOFT_TRADE_TARGET_SUM = 0.98  # Целевая сумма avg_UP + avg_DOWN для логирования
 SOFT_TRADE_COOLDOWN_AFTER_BUY = 5.0  # Задержка после покупки перед следующей (сек)
+
+# === BALANCED TRADING STRATEGY ===
+# Стратегия с двусторонним входом и value-weighted перебалансировкой
+BALANCED_ENTRY_MAX_BUDGET_PCT = 30.0      # Макс % капитала на один рынок
+BALANCED_ENTRY_STEP_PCT = 15              # % от бюджета на один шаг входа
+BALANCED_ENTRY_LAMBDA = 0.5               # λ: 0=чистый value-bet, 1=нейтральный хедж
+BALANCED_ENTRY_MIN_TRADE_USD = 5.0        # Мин размер сделки ($)
+BALANCED_ENTRY_CHECK_INTERVAL = 10.0       # Интервал проверки (сек)
+BALANCED_ENTRY_COOLDOWN_AFTER_BUY = 10.0  # Пауза после покупки (сек)
+BALANCED_ENTRY_MAX_STEPS = 50             # Макс количество шагов входа (увеличено)
+BALANCED_ENTRY_TARGET_SUM = 0.7           # Целевая сумма avg_UP + avg_DOWN
+
+# Умные условия входа (интеллектуальная стратегия)
+BALANCED_STRATEGY_MIN_EDGE = 0.07         # Мин edge (3%) между нашей вероятностью и рынком
+BALANCED_STRATEGY_MIN_PRICE_IMPROVEMENT_PCT = 10  # Мин улучшение цены (1.5%)
+
+# Арбитражное закрытие позиции (предохранитель)
+BALANCED_ARBITRAGE_TARGET_PROFIT_PCT = 10.0     # Целевая прибыль для арбитража (3%)
 
 # Убрано дублирование - все определения выше
 

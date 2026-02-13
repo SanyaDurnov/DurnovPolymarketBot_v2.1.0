@@ -40,8 +40,10 @@ from analysis.market_analyzer import MarketAnalyzer
 from trading.order_manager import OrderManager
 from trading.auto_entry import init_auto_entry_system
 from trading.soft_trading_entry import init_soft_trading_entry_system
+from trading.balanced_trading_entry import init_balanced_trading_entry_system
 from trading.position_manager import stop_all_position_managers
 from trading.position_manager_soft_trading import stop_all_position_managers_soft
+from trading.position_manager_balanced_trading import stop_all_position_managers_balanced
 from trading.market_monitor import MarketMonitor
 from app.monitoring.collector_monitor import collector_monitor
 from app.log_handler import market_log_handler
@@ -64,6 +66,8 @@ for _module in [
     "trading.position_manager",
     "trading.position_manager_soft_trading",
     "trading.soft_trading_entry",
+    "trading.position_manager_balanced_trading",
+    "trading.balanced_trading_entry",
     "trading.order_manager",
     "trading.market_monitor",
     "trading.position",
@@ -112,21 +116,24 @@ market_monitor: Optional[MarketMonitor] = None
 async def startup_event():
     """Инициализация при старте приложения."""
     global pm_client, orderbook_analyzer, market_analyzer, order_manager, market_monitor
-    
+
     try:
         logger.info("Инициализация компонентов...")
-        
+
         # Polymarket Client
+        logger.info("Инициализация Polymarket Client...")
         pm_client = PolymarketClient()
         logger.info("✓ Polymarket Client")
-        
+
         # Orderbook Analyzer
+        logger.info("Инициализация Orderbook Analyzer...")
         orderbook_analyzer = OrderbookAnalyzer(pm_client)
         # Запускаем кэширование orderbook
         orderbook_analyzer.start_cache_updater()
         logger.info("✓ Orderbook Analyzer (с кэшированием)")
-        
+
         # Order Manager
+        logger.info("Инициализация Order Manager...")
         order_manager = OrderManager(
             polymarket_client=pm_client,
             orderbook_analyzer=orderbook_analyzer,
@@ -134,13 +141,16 @@ async def startup_event():
             initial_balance=SIMULATION_INITIAL_BALANCE,
         )
         logger.info("✓ Order Manager (режим: %s)", "SIM" if SIM_MODE else "REAL")
-        
+
         # Инициализируем Price Monitor для Market Analyzer
+        logger.info("Инициализация Price Monitor...")
         from monitoring.price_monitor import PriceMonitor
         price_monitor = PriceMonitor()
         await price_monitor.start()  # Запускаем PriceMonitor для получения цен
+        logger.info("✓ Price Monitor")
 
         # Market Analyzer
+        logger.info("Инициализация Market Analyzer...")
         market_analyzer = MarketAnalyzer(
             price_monitor=price_monitor,
             polymarket_client=pm_client,
@@ -150,14 +160,17 @@ async def startup_event():
         logger.info("✓ Market Analyzer")
 
         # Запускаем автоматическое обновление рынков
+        logger.info("Запуск автообновления рынков...")
         pm_client.start_auto_update()
         logger.info("✓ Автообновление рынков запущено")
 
         # Запускаем мониторинг коллектора
+        logger.info("Запуск мониторинга коллектора...")
         collector_monitor.start_monitoring()
         logger.info("✓ Мониторинг коллектора запущен")
 
         # Запускаем Market Monitor для автоматического закрытия позиций
+        logger.info("Инициализация Market Monitor...")
         market_monitor = MarketMonitor(
             polymarket_client=pm_client,
             price_monitor=price_monitor
@@ -186,6 +199,32 @@ async def startup_event():
                     time.sleep(10)  # Проверка каждые 10 секунд
 
                     # Отладка: показывать активные задачи каждые 5 минут
+                    if int(time.time()) % 300 == 0:
+                        jobs = schedule.jobs
+                        logger.info(f"Планировщик: {len(jobs)} активных задач")
+                        for job in jobs:
+                            logger.info(f"  Задача: {job}")
+
+            scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+            scheduler_thread.start()
+            logger.info("✓ Планировщик запущен в фоне")
+
+        elif TRADING_STRATEGY == "balanced":
+            # BALANCED TRADING: Двусторонний вход с value-weighted перебалансировкой
+            logger.info("⚖️ Запуск BALANCED TRADING стратегии...")
+
+            balanced_entry_system = init_balanced_trading_entry_system(pm_client, price_monitor, order_manager)
+            balanced_entry_system.start_scheduler()
+            logger.info("✓ Система Balanced Trading Entry запущена")
+
+            import threading
+            def run_scheduler():
+                while True:
+                    import schedule
+                    schedule.run_pending()
+                    import time
+                    time.sleep(10)
+
                     if int(time.time()) % 300 == 0:
                         jobs = schedule.jobs
                         logger.info(f"Планировщик: {len(jobs)} активных задач")
@@ -228,6 +267,8 @@ async def startup_event():
 
     except Exception as exc:
         logger.error("Ошибка при инициализации: %s", exc, exc_info=True)
+        # Don't re-raise the exception to prevent the app from crashing
+        # Instead, log the error and continue with limited functionality
 
 
 @app.on_event("shutdown")
@@ -245,6 +286,9 @@ async def shutdown_event():
         if TRADING_STRATEGY == "soft_trading":
             logger.info("Остановка soft trading менеджеров...")
             stop_all_position_managers_soft()
+        elif TRADING_STRATEGY == "balanced":
+            logger.info("Остановка balanced trading менеджеров...")
+            stop_all_position_managers_balanced()
         else:
             logger.info("Остановка position менеджеров...")
             stop_all_position_managers()
